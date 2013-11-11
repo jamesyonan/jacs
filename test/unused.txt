@@ -1,0 +1,146 @@
+				System.out.println("MAC: " + bytesToHex(sig)); // fixme
+			System.out.println("IV: " + bytesToHex(cipher.getIV())); // fixme
+				System.out.println("MAC: " + bytesToHex(sig)); // fixme
+			System.out.println("IV: " + bytesToHex(iv)); // fixme
+
+    final protected static char[] hexArray = "0123456789ABCDEF".toCharArray();
+    public static String bytesToHex(byte[] bytes) {
+		char[] hexChars = new char[bytes.length * 2];
+		int v;
+		for (int j = 0; j < bytes.length; j++) {
+			v = bytes[j] & 0xFF;
+			hexChars[j * 2] = hexArray[v >>> 4];
+			hexChars[j * 2 + 1] = hexArray[v & 0x0F];
+		}
+		return new String(hexChars);
+    }
+
+-------------------------------------------------
+
+	protected static SecretKeySpec secretKey(
+				String pbeAlg,
+				String skAlg,
+				String password,
+				byte[] salt,
+				int nIter,
+				int keySize)
+		throws NoSuchAlgorithmException, InvalidKeySpecException
+	{
+		SecretKeyFactory factory = SecretKeyFactory.getInstance(pbeAlg);
+		KeySpec spec = new PBEKeySpec(password.toCharArray(), salt, nIter, keySize);
+		SecretKey tmp = factory.generateSecret(spec);
+		SecretKeySpec skey = new SecretKeySpec(tmp.getEncoded(), skAlg);
+
+		// debugging
+		{
+			byte[] rawkey = skey.getEncoded();
+		    System.out.println(String.format("KEY[%d]: %s", nIter, bytesToHex(rawkey))); // fixme
+		}
+		return skey;
+	}
+
+	// debugging
+    final protected static char[] hexArray = "0123456789ABCDEF".toCharArray();
+    public static String bytesToHex(byte[] bytes) {
+		char[] hexChars = new char[bytes.length * 2];
+		int v;
+		for (int j = 0; j < bytes.length; j++) {
+			v = bytes[j] & 0xFF;
+			hexChars[j * 2] = hexArray[v >>> 4];
+			hexChars[j * 2 + 1] = hexArray[v & 0x0F];
+		}
+		return new String(hexChars);
+    }
+
+------------------------------
+
+export CLASSPATH="/home/james/bin/bcprov-jdk15on-149.jar:."
+
+------------------------------
+
+	@Override
+	public long skip(long n) throws IOException {
+		read_iv_on_init();
+		return super.skip(n);
+	}
+
+	@Override
+	public int read(byte[] b) throws IOException {
+		read_iv_on_init();
+		return super.read(b);
+	}
+
+	@Override
+	public void write(byte[] b) throws IOException {
+		mac.update(b);
+		os.write(b);
+	}
+
+	@Override
+	public void write(byte[] b) throws IOException {
+		pre_write_check();
+		super.write(b);
+	}
+
+------------------
+
+		private void read_buf() throws IOException {
+			if (!eof) {
+				buflen = 0;
+				bufoffset = 0;
+				while (buflen < buf.length) {
+					int remaining = buf.length - buflen;
+					int n = is.read(buf, buflen, remaining);
+					if (n < 0) {
+						eof = true;
+						break;
+					}
+					buflen += n;
+				}
+			}
+		}
+
+		private int get_char(boolean peek) throws IOException {
+			if (bufoffset == buflen) {
+				read_buf();
+				if (bufoffset == buflen)
+					return -1;
+			}
+			int ret = buf[bufoffset];
+			if (!peek)
+				bufoffset += 1;
+			return ret;
+		}
+
+		private byte[] read_line() throws IOException {
+			byte[] line = new byte[1024];
+			int len = 0;
+
+			while (true) {
+				int b = get_char(false);
+				if (b < 0)
+					break;
+				if (len == line.length)
+					throw new LineTooLong();
+				line[len] = (byte)b;
+				len += 1;
+				if (b == '\n')
+					break;
+			}
+			return Arrays.copyOf(line, len);
+		}
+
+------------------
+
+1-byte xfer:
+
+	public static void xfer(InputStream is, OutputStream os) throws IOException {
+		while (true) {
+			int b = is.read();
+			if (b < 0)
+				break;
+			os.write((byte)b);
+		}
+	}
+
+------------------

@@ -1,0 +1,9 @@
+#!/bin/bash
+# build a standalone jacs executable for unix
+set -e
+mvn -e clean install
+cat >jacs <<EOF
+#!/usr/bin/java -jar
+EOF
+cat target/jacs-*.jar >>jacs
+chmod +x jacs

@@ -1,0 +1,302 @@
+#!/bin/bash
+
+# jacs self-test, run from top-level of jacs directory.
+
+set -e
+t="/tmp/jacs-test.tmp"
+if [ "$NOBUILD" = "1" ]; then
+	cd "$t"
+else
+	rm -rf "$t"
+	cp -a . "$t"
+	cd "$t"
+	./build
+	python test/genbig.py big.txt 1000000
+	gcc -O2 test/dec.c -o dec -lcrypto
+	#cp $HOME/bin/bcprov-jdk15on-149.jar .
+	echo ADDITIONAL TESTS...
+fi
+
+for cipher in $(./jacs algs) ; do
+	echo $cipher
+
+	dec_enable=0
+	[ $cipher = "PBKDF2-SHA1-AES256-HMAC-SHA256" ] && dec_enable=1
+
+	# encrypt/decrypt empty file
+	rm -f null.enc null1.txt null2.txt
+	if ! ./jacs E $cipher mygoodness 10 /dev/null null.enc ; then
+		echo "test $cipher #1 failed"
+		exit 1
+	fi
+	if ! ./jacs D $cipher mygoodness 10 null.enc null1.txt ; then
+		echo "test $cipher #2 failed"
+		exit 1
+	fi
+	if ! cmp /dev/null null1.txt ; then
+		echo "test $cipher #3 failed"
+		exit 1
+	fi
+	if [ $dec_enable -eq 1 ] ; then
+		if ! ./dec $cipher mygoodness 10 null.enc null2.txt ; then
+			echo "test $cipher #4 failed"
+			exit 1
+		fi
+		if ! cmp /dev/null null2.txt ; then
+			echo "test $cipher #5 failed"
+			exit 1
+		fi
+	fi
+
+	# encrypt/decrypt small file
+	rm -f hello.enc hello1.txt hello2.txt
+	if ! ./jacs E $cipher mygoodness 10 stdin <test/hello.txt hello.enc ; then
+		echo "test $cipher #6 failed"
+		exit 1
+	fi
+	if ! ./jacs D $cipher mygoodness 10 hello.enc stdout >hello1.txt ; then
+		echo "test $cipher #7 failed"
+		exit 1
+	fi
+	if ! cmp test/hello.txt hello1.txt ; then
+		echo "test $cipher #8 failed"
+		exit 1
+	fi
+	if [ $dec_enable -eq 1 ] ; then
+		if ! ./dec $cipher mygoodness 10 hello.enc >hello2.txt ; then
+			echo "test $cipher #9 failed"
+			exit 1
+		fi
+		if ! cmp test/hello.txt hello2.txt ; then
+			echo "test $cipher #10 failed"
+			exit 1
+		fi
+	fi
+
+	# encrypt/decrypt big file
+	rm -f big.enc big1.txt big2.txt
+	if ! ./jacs E $cipher mygoodness 16 big.txt big.enc ; then
+		echo "test $cipher #11 failed"
+		exit 1
+	fi
+	if ! ./jacs D $cipher mygoodness 16 big.enc big1.txt ; then
+		echo "test $cipher #12 failed"
+		exit 1
+	fi
+	if ! cmp big.txt big1.txt ; then
+		echo "test $cipher #13 failed"
+		exit 1
+	fi
+	if [ $dec_enable -eq 1 ] ; then
+		if ! ./dec $cipher mygoodness 16 big.enc big2.txt ; then
+			echo "test $cipher #14 failed"
+			exit 1
+		fi
+		if ! cmp big.txt big2.txt ; then
+			echo "test $cipher #15 failed"
+			exit 1
+		fi
+	fi
+
+	# test error detection (small corrupted file)
+	cp hello.enc hello.bad
+	echo foo >>hello.bad
+	if ./jacs D $cipher mygoodness 10 hello.bad /dev/null >/dev/null 2>&1 ; then
+		echo "test $cipher #16 failed"
+		exit 1
+	fi
+	if [ $dec_enable -eq 1 ] ; then
+		if ./dec $cipher mygoodness 10 hello.bad /dev/null >/dev/null 2>&1 ; then
+			echo "test $cipher #17 failed"
+			exit 1
+		fi
+	fi
+
+	# test error detection (small file, bad password)
+	if ./jacs D $cipher mybadness 10 hello.enc /dev/null >/dev/null 2>&1 ; then
+		echo "test $cipher #18 failed"
+		exit 1
+	fi
+	if [ $dec_enable -eq 1 ] ; then
+		if ./dec $cipher mybadness 10 hello.enc /dev/null >/dev/null 2>&1 ; then
+			echo "test $cipher #19 failed"
+			exit 1
+		fi
+	fi
+
+	# test error detection (small file, bad # of iterations)
+	if ./jacs D $cipher mygoodness 1023 hello.enc /dev/null >/dev/null 2>&1 ; then
+		echo "test $cipher #20 failed"
+		exit 1
+	fi
+	if [ $dec_enable -eq 1 ] ; then
+		if ./dec $cipher mygoodness 1023 hello.enc /dev/null >/dev/null 2>&1 ; then
+			echo "test $cipher #21 failed"
+			exit 1
+		fi
+	fi
+
+	# test error detection (big corrupted file)
+	cp big.enc big.bad
+	echo foo >>big.bad
+	if ./jacs D $cipher mygoodness 16 big.bad /dev/null >/dev/null 2>&1 ; then
+		echo "test $cipher #22 failed"
+		exit 1
+	fi
+	if [ $dec_enable -eq 1 ] ; then
+		if ./dec $cipher mygoodness 16 big.bad /dev/null >/dev/null 2>&1 ; then
+			echo "test $cipher #23 failed"
+			exit 1
+		fi
+	fi
+
+	# test error detection (big file, bad password)
+	if ./jacs D $cipher mybadness 16 big.enc /dev/null >/dev/null 2>&1 ; then
+		echo "test $cipher #24 failed"
+		exit 1
+	fi
+	if [ $dec_enable -eq 1 ] ; then
+		if ./dec $cipher mybadness 16 big.enc /dev/null >/dev/null 2>&1 ; then
+			echo "test $cipher #25 failed"
+			exit 1
+		fi
+	fi
+
+	# test error detection (big file, bad # of iterations)
+	if ./jacs D $cipher mygoodness 12346 big.enc /dev/null >/dev/null 2>&1 ; then
+		echo "test $cipher #26 failed"
+		exit 1
+	fi
+	if [ $dec_enable -eq 1 ] ; then
+		if ./dec $cipher mygoodness 12346 big.enc /dev/null >/dev/null 2>&1 ; then
+			echo "test $cipher #27 failed"
+			exit 1
+		fi
+	fi
+
+	# test error detection (empty ciphertext file)
+	if ./jacs D $cipher foo /dev/null /dev/null >/dev/null 2>&1 ; then
+		echo "test $cipher #28 failed"
+		exit 1
+	fi
+	if [ $dec_enable -eq 1 ] ; then
+		if ./dec $cipher foo /dev/null /dev/null >/dev/null 2>&1 ; then
+			echo "test $cipher #29 failed"
+			exit 1
+		fi
+	fi
+
+	# encrypt/decrypt empty file (base64)
+	rm -f null.enc null1.txt
+	if ! ./jacs E64 $cipher mygoodness 10 /dev/null null.enc ; then
+		echo "test $cipher #30 failed"
+		exit 1
+	fi
+	if ! ./jacs D64 mygoodness null.enc null1.txt ; then
+		echo "test $cipher #31 failed"
+		exit 1
+	fi
+	if ! cmp /dev/null null1.txt ; then
+		echo "test $cipher #32 failed"
+		exit 1
+	fi
+
+	# encrypt/decrypt small file (base64)
+	rm -f hello.enc hello1.txt hello2.txt
+	if ! ./jacs E64 $cipher mygoodness 10 stdin <test/hello.txt hello.enc ; then
+		echo "test $cipher #33 failed"
+		exit 1
+	fi
+	if ! ./jacs D64A mygoodness hello.enc stdout >hello1.txt ; then
+		echo "test $cipher #34 failed"
+		exit 1
+	fi
+	if ! cmp test/hello.txt hello1.txt ; then
+		echo "test $cipher #35 failed"
+		exit 1
+	fi
+
+	# encrypt/decrypt big file (base64)
+	rm -f big.enc big1.txt big2.txt
+	if ! ./jacs E64 $cipher mygoodness 16 big.txt big.enc ; then
+		echo "test $cipher #36 failed"
+		exit 1
+	fi
+	if ! ./jacs D64 mygoodness big.enc big1.txt ; then
+		echo "test $cipher #37 failed"
+		exit 1
+	fi
+	if ! cmp big.txt big1.txt ; then
+		echo "test $cipher #38 failed"
+		exit 1
+	fi
+
+	# encrypt/decrypt big file via pipe (base64)
+	rm -f big1.txt
+	if ! cat big.txt | ./jacs E64 $cipher mygoodness 16 stdin stdout | ./jacs D64 mygoodness stdin stdout | cat >big1.txt ; then
+		echo "test $cipher #39 failed"
+		exit 1
+	fi
+	if ! cmp big.txt big1.txt ; then
+		echo "test $cipher #40 failed"
+		exit 1
+	fi
+
+	# test error detection (small corrupted file, base64)
+	cp hello.enc hello.bad
+	echo Zm9v >>hello.bad
+	if ./jacs D64 mygoodness hello.bad /dev/null >/dev/null 2>&1 ; then
+		echo "test $cipher #41 failed"
+		exit 1
+	fi
+
+	# test error detection (non-base64)
+	cp hello.enc hello.bad
+	echo '!@#$' >>hello.bad
+	if ./jacs D64 mygoodness hello.bad /dev/null >/dev/null 2>&1 ; then
+		echo "test $cipher #42 failed"
+		exit 1
+	fi
+
+	# test error detection (small file, bad password, base64)
+	if ./jacs D64 mybadness hello.enc /dev/null >/dev/null 2>&1 ; then
+		echo "test $cipher #43 failed"
+		exit 1
+	fi
+
+	# test error detection (big corrupted file, base64)
+	cp big.enc big.bad
+	echo Zm9v >>big.bad
+	if ./jacs D64 mygoodness big.bad /dev/null >/dev/null 2>&1 ; then
+		echo "test $cipher #44 failed"
+		exit 1
+	fi
+
+	# test error detection (big file, bad password, base64)
+	if ./jacs D64 mybadness big.enc /dev/null >/dev/null 2>&1 ; then
+		echo "test $cipher #45 failed"
+		exit 1
+	fi
+
+	# test error detection (empty ciphertext file, base64)
+	if ./jacs D64 foo /dev/null /dev/null >/dev/null 2>&1 ; then
+		echo "test $cipher #46 failed"
+		exit 1
+	fi
+
+	# test error detection (non-base64 header)
+	if ./jacs D64 foo test/hello.txt /dev/null >/dev/null 2>&1 ; then
+		echo "test $cipher #47 failed"
+		exit 1
+	fi
+
+	# test adaptive passthru (base64)
+	if ! ./jacs D64A mygoodness test/hello.txt stdout >hello1.txt ; then
+		echo "test $cipher #48 failed"
+		exit 1
+	fi
+	if ! cmp test/hello.txt hello1.txt ; then
+		echo "test $cipher #49 failed"
+		exit 1
+	fi
+done

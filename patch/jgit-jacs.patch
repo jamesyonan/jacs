@@ -1,0 +1,292 @@
+diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Main.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Main.java
+index b948bc2..1c36fdc 100644
+--- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Main.java
++++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Main.java
+@@ -52,6 +52,7 @@
+ import java.net.URL;
+ import java.text.MessageFormat;
+ import java.util.ArrayList;
++import java.util.Arrays;
+ import java.util.List;
+ 
+ import org.eclipse.jgit.awtui.AwtAuthenticator;
+@@ -68,6 +69,8 @@
+ import org.kohsuke.args4j.ExampleMode;
+ import org.kohsuke.args4j.Option;
+ 
++import net.openvpn.jacs.Jacs;
++
+ /** Command line entry point. */
+ public class Main {
+ 	@Option(name = "--help", usage = "usage_displayThisHelpText", aliases = { "-h" })
+@@ -113,6 +116,11 @@ public static void main(final String[] argv) {
+ 	 */
+ 	protected void run(final String[] argv) {
+ 		try {
++			if (argv.length >= 1 && argv[0].equals("jacs")) {
++				String[] jacsArgv = Arrays.copyOfRange(argv, 1, argv.length);
++				Jacs.main(jacsArgv);
++				System.exit(1);
++			}
+ 			if (!installConsole()) {
+ 				AwtAuthenticator.install();
+ 				AwtCredentialsProvider.install();
+diff --git a/org.eclipse.jgit/pom.xml b/org.eclipse.jgit/pom.xml
+index 88c3874..d06569b 100644
+--- a/org.eclipse.jgit/pom.xml
++++ b/org.eclipse.jgit/pom.xml
+@@ -78,6 +78,12 @@
+       <groupId>com.googlecode.javaewah</groupId>
+       <artifactId>JavaEWAH</artifactId>
+     </dependency>
++
++	<dependency>
++	  <groupId>net.openvpn</groupId>
++	  <artifactId>jacs</artifactId>
++	  <version>0.5.1</version>
++	</dependency>
+   </dependencies>
+ 
+   <build>
+diff --git a/org.eclipse.jgit/resources/org/eclipse/jgit/internal/JGitText.properties b/org.eclipse.jgit/resources/org/eclipse/jgit/internal/JGitText.properties
+index 706dce7..f969f52 100644
+--- a/org.eclipse.jgit/resources/org/eclipse/jgit/internal/JGitText.properties
++++ b/org.eclipse.jgit/resources/org/eclipse/jgit/internal/JGitText.properties
+@@ -265,6 +265,7 @@ invalidModeForPath=Invalid mode {0} for path {1}
+ invalidObject=Invalid {0} {1}:{2}
+ invalidOldIdSent=invalid old id sent
+ invalidPacketLineHeader=Invalid packet line header: {0}
++invalidPassword=Invalid password: {0}
+ invalidPath=Invalid path: {0}
+ invalidReflogRevision=Invalid reflog revision: {0}
+ invalidRefName=Invalid ref name: {0}
+diff --git a/org.eclipse.jgit/src/org/eclipse/jgit/internal/JGitText.java b/org.eclipse.jgit/src/org/eclipse/jgit/internal/JGitText.java
+index 8ac971a..7ee2517 100644
+--- a/org.eclipse.jgit/src/org/eclipse/jgit/internal/JGitText.java
++++ b/org.eclipse.jgit/src/org/eclipse/jgit/internal/JGitText.java
+@@ -327,6 +327,7 @@ public static JGitText get() {
+ 	/***/ public String invalidObject;
+ 	/***/ public String invalidOldIdSent;
+ 	/***/ public String invalidPacketLineHeader;
++	/***/ public String invalidPassword;
+ 	/***/ public String invalidPath;
+ 	/***/ public String invalidReflogRevision;
+ 	/***/ public String invalidRefName;
+diff --git a/org.eclipse.jgit/src/org/eclipse/jgit/transport/AmazonS3.java b/org.eclipse.jgit/src/org/eclipse/jgit/transport/AmazonS3.java
+index 99d8b09..f251498 100644
+--- a/org.eclipse.jgit/src/org/eclipse/jgit/transport/AmazonS3.java
++++ b/org.eclipse.jgit/src/org/eclipse/jgit/transport/AmazonS3.java
+@@ -44,18 +44,21 @@
+ package org.eclipse.jgit.transport;
+ 
+ import java.io.ByteArrayOutputStream;
++import java.io.Console;
+ import java.io.File;
+ import java.io.FileInputStream;
+ import java.io.FileNotFoundException;
+ import java.io.IOException;
+ import java.io.InputStream;
+ import java.io.OutputStream;
++import java.io.UnsupportedEncodingException;
+ import java.net.HttpURLConnection;
+ import java.net.Proxy;
+ import java.net.ProxySelector;
+ import java.net.URL;
+ import java.net.URLConnection;
+ import java.security.DigestOutputStream;
++import java.security.GeneralSecurityException;
+ import java.security.InvalidKeyException;
+ import java.security.MessageDigest;
+ import java.security.NoSuchAlgorithmException;
+@@ -77,6 +80,7 @@
+ import java.util.TreeMap;
+ 
+ import javax.crypto.Mac;
++import javax.crypto.NoSuchPaddingException;
+ import javax.crypto.spec.SecretKeySpec;
+ 
+ import org.eclipse.jgit.internal.JGitText;
+@@ -94,6 +98,10 @@
+ import org.xml.sax.helpers.DefaultHandler;
+ import org.xml.sax.helpers.XMLReaderFactory;
+ 
++import net.openvpn.jacs.JacsAlgs;
++import net.openvpn.jacs.CipherMacSpec;
++import net.openvpn.jacs.CipherInputStreamIVMACBase64;
++
+ /**
+  * A simple HTTP REST client for the Amazon S3 service.
+  * <p>
+@@ -109,6 +117,9 @@
+  * compatible with <a href="http://jets3t.s3.amazonaws.com/index.html">jets3t</a>,
+  * a popular Java based Amazon S3 client library. Enabling encryption can hide
+  * sensitive data from the operators of the S3 service.
++ *
++ * Support for Jacs (Java augmented cipher streams) client-side encryption is
++ * also provided.
+  */
+ public class AmazonS3 {
+ 	private static final Set<String> SIGNED_HEADERS;
+@@ -238,7 +249,24 @@ else if (StringUtils.equalsIgnoreCase("PUBLIC_READ", pacl)) //$NON-NLS-1$
+ 				String cAlg = props.getProperty("crypto.algorithm"); //$NON-NLS-1$
+ 				if (cAlg == null)
+ 					cAlg = "PBEWithMD5AndDES"; //$NON-NLS-1$
+-				encryption = new WalkEncryption.ObjectEncryptionV2(cAlg, cPas);
++
++				// Is this a Jacs-supported encryption algorithm?
++				CipherMacSpec spec = JacsAlgs.getInstance(cAlg);
++				if (spec != null) {
++					// get strength of key stretching alg
++					int strength = 16; // default
++					String cStrength = props.getProperty("crypto.strength");
++					if (cStrength != null) {
++						try {
++							strength = Integer.parseInt(cStrength);
++						} catch (NumberFormatException e) {
++							throw new IllegalArgumentException("Invalid crypto.strength: " + cStrength);
++						}
++					}
++					spec.init(cPas, strength);
++					encryption = new WalkEncryption.ObjectEncryptionJacsV1(spec);
++				} else
++				    encryption = new WalkEncryption.ObjectEncryptionV2(cAlg, cPas);
+ 			} else {
+ 				encryption = WalkEncryption.NONE;
+ 			}
+@@ -246,6 +274,12 @@ else if (StringUtils.equalsIgnoreCase("PUBLIC_READ", pacl)) //$NON-NLS-1$
+ 			throw new IllegalArgumentException(JGitText.get().invalidEncryption, e);
+ 		} catch (NoSuchAlgorithmException e) {
+ 			throw new IllegalArgumentException(JGitText.get().invalidEncryption, e);
++		} catch (NoSuchPaddingException e) {
++			throw new IllegalArgumentException(JGitText.get().invalidEncryption, e);
++		} catch (UnsupportedEncodingException e) {
++			throw new IllegalArgumentException(JGitText.get().invalidEncryption, e);
++		} catch (GeneralSecurityException e) {
++			throw new IllegalArgumentException(JGitText.get().invalidEncryption, e);
+ 		}
+ 
+ 		maxAttempts = Integer.parseInt(props.getProperty(
+@@ -633,10 +667,18 @@ static Properties properties(final File authFile)
+ 			throws FileNotFoundException, IOException {
+ 		final Properties p = new Properties();
+ 		final FileInputStream in = new FileInputStream(authFile);
++		CipherInputStreamIVMACBase64 cin = new CipherInputStreamIVMACBase64(in, null, true) {
++				@Override
++				public String getPassword() throws IOException {
++					Console console = System.console();
++					char[] pw = console.readPassword("Password:");
++					return new String(pw);
++				}
++			};
+ 		try {
+-			p.load(in);
++			p.load(cin);
+ 		} finally {
+-			in.close();
++			cin.close();
+ 		}
+ 		return p;
+ 	}
+diff --git a/org.eclipse.jgit/src/org/eclipse/jgit/transport/TransportAmazonS3.java b/org.eclipse.jgit/src/org/eclipse/jgit/transport/TransportAmazonS3.java
+index 0a50fe2..1ea4194 100644
+--- a/org.eclipse.jgit/src/org/eclipse/jgit/transport/TransportAmazonS3.java
++++ b/org.eclipse.jgit/src/org/eclipse/jgit/transport/TransportAmazonS3.java
+@@ -73,6 +73,8 @@
+ import org.eclipse.jgit.lib.Repository;
+ import org.eclipse.jgit.lib.SymbolicRef;
+ 
++import net.openvpn.jacs.CipherInputStreamIVMAC;
++
+ /**
+  * Transport over the non-Git aware Amazon S3 protocol.
+  * <p>
+@@ -179,6 +181,9 @@ private static Properties loadPropertiesFile(File propsFile)
+ 			throws NotSupportedException {
+ 		try {
+ 			return AmazonS3.properties(propsFile);
++		} catch (CipherInputStreamIVMAC.HMACVerificationFailed e) {
++			throw new NotSupportedException(MessageFormat.format(
++					JGitText.get().invalidPassword, propsFile), e);
+ 		} catch (IOException e) {
+ 			throw new NotSupportedException(MessageFormat.format(
+ 					JGitText.get().cannotReadFile, propsFile), e);
+diff --git a/org.eclipse.jgit/src/org/eclipse/jgit/transport/WalkEncryption.java b/org.eclipse.jgit/src/org/eclipse/jgit/transport/WalkEncryption.java
+index e55b984..efac766 100644
+--- a/org.eclipse.jgit/src/org/eclipse/jgit/transport/WalkEncryption.java
++++ b/org.eclipse.jgit/src/org/eclipse/jgit/transport/WalkEncryption.java
+@@ -64,6 +64,10 @@
+ 
+ import org.eclipse.jgit.internal.JGitText;
+ 
++import net.openvpn.jacs.CipherMacSpec;
++import net.openvpn.jacs.CipherOutputStreamIVMAC;
++import net.openvpn.jacs.CipherInputStreamIVMAC;
++
+ abstract class WalkEncryption {
+ 	static final WalkEncryption NONE = new NoEncryption();
+ 
+@@ -194,4 +198,64 @@ InputStream decrypt(final InputStream in) throws IOException {
+ 			}
+ 		}
+ 	}
++
++    static class ObjectEncryptionJacsV1 extends WalkEncryption {
++		private static String CRYPTO_VER = "jgit-jacs-ver";
++		private static String CRYPTO_ALG = "jgit-jacs-alg";
++
++		CipherMacSpec spec;
++
++		ObjectEncryptionJacsV1(final CipherMacSpec spec)
++		{
++			this.spec = spec;
++		}
++
++		protected void validateImpl(final HttpURLConnection u, final String p,
++					final String version, final String name) throws IOException {
++			String v;
++
++			v = u.getHeaderField(p + CRYPTO_VER);
++			if (v == null)
++				v = "";
++			if (!version.equals(v))
++				throw new IOException(MessageFormat.format(JGitText.get().unsupportedEncryptionVersion, v));
++
++			v = u.getHeaderField(p + CRYPTO_ALG);
++			if (v == null)
++				v = "";
++			if (!name.equals(v))
++				throw new IOException(JGitText.get().unsupportedEncryptionAlgorithm + v);
++		}
++
++		@Override
++		void request(final HttpURLConnection u, final String prefix) {
++			u.setRequestProperty(prefix + CRYPTO_VER, "1");
++			u.setRequestProperty(prefix + CRYPTO_ALG, spec.name());
++		}
++
++		@Override
++		void validate(final HttpURLConnection u, final String p) throws IOException {
++			validateImpl(u, p, "1", spec.name());
++		}
++
++		@Override
++		OutputStream encrypt(final OutputStream os) throws IOException {
++			try {
++				final CipherOutputStreamIVMAC cos = new CipherOutputStreamIVMAC(os, spec);
++				return cos;
++			} catch (InvalidKeyException e) {
++				throw error(e);
++			}
++		}
++
++		@Override
++		InputStream decrypt(final InputStream in) throws IOException {
++			try {
++				final CipherInputStreamIVMAC cin = new CipherInputStreamIVMAC(in, spec);
++				return cin;
++			} catch (InvalidKeyException e) {
++				throw error(e);
++			}
++		}
++	}
+ }
