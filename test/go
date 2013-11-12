@@ -12,7 +12,7 @@ else
 	cd "$t"
 	./build
 	python test/genbig.py big.txt 1000000
-	gcc -O2 test/dec.c -o dec -lcrypto
+	gcc -Wno-deprecated-declarations -O2 test/dec.c -o dec -lcrypto
 	#cp $HOME/bin/bcprov-jdk15on-149.jar .
 	echo ADDITIONAL TESTS...
 fi

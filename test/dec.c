@@ -21,6 +21,9 @@
 
 #define DEBUG 0
 
+#include <openssl/err.h>
+#include <openssl/conf.h>
+#include <openssl/hmac.h>
 #include <openssl/evp.h>
 
 #define CIPHER_KEY_LEN  32
@@ -179,10 +182,13 @@ int main(int argc, char *argv[])
 	}
 
 	/* Verify HMAC */
-	HMAC(EVP_sha256(), hmac_key, HMAC_KEY_LEN, ciphertext, ciphertext_len - HMAC_LEN, md);
-	if (memcmp(md, ciphertext + ciphertext_len - HMAC_LEN, HMAC_LEN)) {
-		fprintf(stderr, "HMAC FAILED\n");
-		return 1;
+	{
+		unsigned int md_len = HMAC_LEN;
+		HMAC(EVP_sha256(), hmac_key, HMAC_KEY_LEN, ciphertext, ciphertext_len - HMAC_LEN, md, &md_len);
+		if (memcmp(md, ciphertext + ciphertext_len - HMAC_LEN, HMAC_LEN) || md_len != HMAC_LEN) {
+			fprintf(stderr, "HMAC FAILED\n");
+			return 1;
+		}
 	}
 
 	/* Get cipher type */
