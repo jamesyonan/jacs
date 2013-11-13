@@ -29,9 +29,14 @@ import javax.crypto.CipherOutputStream;
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.Mac;
+import javax.crypto.spec.IvParameterSpec;
 
 import java.io.IOException;
 import java.security.InvalidKeyException;
+
+import java.security.SecureRandom;
+
+import java.security.InvalidAlgorithmParameterException;
 
 /**
  * CipherOutputStream extension that supports Explicit IV and
@@ -110,8 +115,15 @@ public class CipherOutputStreamIVMAC extends CipherOutputStream {
 
 	protected void pre_write() throws IOException {
 		try {
-			spec.cipher.init(Cipher.ENCRYPT_MODE, spec.cipherKey);
+			SecureRandom random = new SecureRandom();
+			byte iv[] = new byte[spec.cipher.getBlockSize()];
+			random.nextBytes(iv);
+			//System.err.println(String.format("Generated IV: %s", Util.bytesToHex(iv)));
+			spec.cipher.init(Cipher.ENCRYPT_MODE, spec.cipherKey, new IvParameterSpec(iv));
 		} catch (InvalidKeyException e) {
+			throw new IOExceptionWrapper(e);
+		}
+        catch (InvalidAlgorithmParameterException e) {
 			throw new IOExceptionWrapper(e);
 		}
 		out.write(spec.cipher.getIV());
