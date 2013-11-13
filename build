@@ -1,7 +1,9 @@
 #!/bin/bash
 # build a standalone jacs executable for unix
 set -e
-mvn -e clean install
+TESTS=""
+[ "$NOTEST" = "1" ] && TESTS="-DskipTests"
+mvn -e clean install $TESTS
 cat >jacs <<EOF
 #!/usr/bin/java -jar
 EOF
