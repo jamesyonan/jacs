@@ -156,7 +156,8 @@ public class Jacs {
 		for (String alg : JacsAlgs.enumAlgs())
 			System.err.println("  "+alg);
 		System.err.println("password   : password or '.' to prompt from stdin without echo");
-		System.err.println("strength   : strength of password derivation (1 to 32)");
+		System.err.println("strength   : strength of password derivation (1 to 32 for exponential");
+		System.err.println("             strength or 64 and higher for iteration count)");
 		System.err.println("infile     : input pathname or 'stdin'");
 		System.err.println("outfile    : output pathname or 'stdout'");
 		System.err.println("'A' suffix : for D64, pass through input if not encrypted");

@@ -197,6 +197,8 @@ key derivation method:
    with the PBKDF2-SHA1 algorithm to transform the passphrase into
    the cipher key and HMAC key.  The iteration count is taken as 2^_S_
    where _S_ is the "strength" parameter provided by the user.
+   Alternatively, if strength >= 64, it will be treated as an iteration
+   count.
 
 2. __PBKDF2-SHA512__: a single 32 byte constant salt and passphrase are
    used as input to the PBKDF2-SHA512 algorithm to derive a 512 bit
@@ -206,6 +208,8 @@ key derivation method:
    256 bit keys to be used as cipher and HMAC keys.  Like
    PBKDF2-SHA1 above, the iteration count is taken as 2^_S_ where _S_ is
    the "strength" parameter provided by the user.
+   Alternatively, if strength >= 64, it will be treated as an iteration
+   count.
 
 3. __Bcrypt__: a single 32 byte constant salt and passphrase are used to
    derive a 24-byte key using the Bcrypt algorithm, which is then
@@ -264,7 +268,7 @@ Standalone executable will be written to ./jacs
 
 ````
 $ ./jacs
-jacs 0.5.1: symmetric encryption tool
+jacs: symmetric encryption tool
 usage:
   encrypt : jacs E <alg> <password> <strength> <infile> <outfile>
   decrypt : jacs D <alg> <password> <strength> <infile> <outfile>
@@ -276,7 +280,8 @@ algs:
   SCRYPT-AES256-HMAC-SHA256
   BCRYPT-AES256-HMAC-SHA256
 password   : password or '.' to prompt from stdin without echo
-strength   : strength of password derivation (1 to 32)
+strength   : strength of password derivation (1 to 32 for exponential
+             strength or 64 and higher for iteration count)
 infile     : input pathname or 'stdin'
 outfile    : output pathname or 'stdout'
 'A' suffix : for D64, pass through input if not encrypted

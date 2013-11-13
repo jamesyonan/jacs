@@ -105,10 +105,10 @@ public class PBKDF2_SHA1_AES256_HMAC_SHA256 extends CipherMacSpec {
 	{
 		if (password.length() == 0)
 			throw new IllegalArgumentException("password is empty");
-		if (strength < 1 || strength > 31)
-			throw new IllegalArgumentException("PBKDF2 strength is out of range (must be between 1 and 31)");
+		if (strength < 1 || (strength >= 32 && strength < 64))
+			throw new IllegalArgumentException("PBKDF2 strength is out of range (must be between 1 and 31 for exponential strength or 64 and higher for iteration count)");
 
-		byte[] raw_key = PBKDF.pbkdf2(pbkdf2HmacAlg, password.getBytes("UTF-8"), salt, 1<<strength, keySize/8);
+		byte[] raw_key = PBKDF.pbkdf2(pbkdf2HmacAlg, password.getBytes("UTF-8"), salt, strength < 64 ? (1<<strength) : strength, keySize/8);
 		//System.err.println(String.format("PBKDF2-%s[%d]: %s", pbkdf2HmacAlg, strength, Util.bytesToHex(raw_key)));
 		SecretKeySpec skey = new SecretKeySpec(raw_key, alg);
 		return skey;

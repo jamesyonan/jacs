@@ -88,10 +88,10 @@ public class PBKDF2_SHA512_AES256_HMAC_SHA256 extends CipherMacSpec {
 	{
 		if (password.length() == 0)
 			throw new IllegalArgumentException("password is empty");
-		if (strength < 1 || strength > 31)
-			throw new IllegalArgumentException("PBKDF2 strength is out of range (must be between 1 and 31)");
+		if (strength < 1 || (strength >= 32 && strength < 64))
+			throw new IllegalArgumentException("PBKDF2 strength is out of range (must be between 1 and 31 for exponential strength or 64 and higher for iteration count)");
 
-		byte[] combined_key = PBKDF.pbkdf2(pbkdf2HmacAlg(), password.getBytes("UTF-8"), salt(), 1<<strength, 64);
+		byte[] combined_key = PBKDF.pbkdf2(pbkdf2HmacAlg(), password.getBytes("UTF-8"), salt(), strength < 64 ? (1<<strength) : strength, 64);
 		//System.err.println(String.format("PBKDF2-%s[%d]: %s", pbkdf2HmacAlg(), strength, Util.bytesToHex(combined_key)));
 
 		cipher = Cipher.getInstance(cipherAlg());
