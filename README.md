@@ -279,6 +279,10 @@ algs:
   PBKDF2-SHA512-AES256-HMAC-SHA256
   SCRYPT-AES256-HMAC-SHA256
   BCRYPT-AES256-HMAC-SHA256
+  PBKDF2-SHA1-AES256-HMAC-SHA1
+  PBKDF2-SHA512-AES256-HMAC-SHA1
+  SCRYPT-AES256-HMAC-SHA1
+  BCRYPT-AES256-HMAC-SHA1
 password   : password or '.' to prompt from stdin without echo
 strength   : strength of password derivation (1 to 32 for exponential
              strength or 64 and higher for iteration count)
