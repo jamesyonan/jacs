@@ -32,6 +32,8 @@ import java.io.IOException;
 
 import java.lang.StringBuilder;
 
+import java.security.SecureRandom;
+
 public class JacsTest {
 	private static final String enc_1984 = // encrypted with password "mygoodness"
 		"===== BEGIN JACS ENCRYPTED FILE ALG:PBKDF2-SHA1-AES256-HMAC-SHA256 STRENGTH:12\n" +
@@ -71,30 +73,79 @@ public class JacsTest {
 	}
 
 	@Test
-	public void testEncryptDecrypt1984() throws Exception {
-		testEncryptDecryptString(plain_1984);
+	public void testEncryptDecrypt1984UsingPassword() throws Exception {
+		testEncryptDecryptStringUsingPassword(plain_1984);
 	}
 
 	@Test
-	public void testEncryptDecryptLargeString() throws Exception {
+	public void testEncryptDecryptLargeStringUsingPassword() throws Exception {
 		StringBuilder sb = new StringBuilder();
 		for (int i = 0; i < 1000; i += 1) {
 			sb.append(plain_1984);
 		}
-		testEncryptDecryptString(sb.toString());
+		testEncryptDecryptStringUsingPassword(sb.toString());
 	}
 
-	private void testEncryptDecryptString(String content) throws Exception {
+	@Test
+	public void testEncryptDecrypt1984UsingKey() throws Exception {
+		testEncryptDecryptStringUsingKey(plain_1984);
+	}
+
+	@Test
+	public void testEncryptDecryptLargeStringUsingKey() throws Exception {
+		StringBuilder sb = new StringBuilder();
+		for (int i = 0; i < 1000; i += 1) {
+			sb.append(plain_1984);
+		}
+		testEncryptDecryptStringUsingKey(sb.toString());
+	}
+
+	private void testEncryptDecryptStringUsingPassword(String content) throws Exception {
+		final String password = "foobar";
 		for (String alg : JacsAlgs.enumAlgs()) {
 			ByteArrayInputStream inplain = new ByteArrayInputStream(content.getBytes("UTF-8"));
 			CipherMacSpec spec = JacsAlgs.getInstance(alg);
-			spec.init("foobar", 16);
+			spec.init(password, 16);
 			PipeOutputBuffer outenc = new PipeOutputBuffer();
 			CipherOutputStreamIVMACBase64 cos = new CipherOutputStreamIVMACBase64(outenc, spec);
 			xfer(inplain, cos);
 
 			ByteArrayInputStream isenc = outenc.getInputStream();
-			CipherInputStreamIVMACBase64 cis = new CipherInputStreamIVMACBase64(isenc, "foobar", false);
+			CipherInputStreamIVMACBase64 cis = new CipherInputStreamIVMACBase64(isenc, null, false) {
+					@Override
+					public void getKey(CipherInputStreamIVMACBase64.Parms parms) throws IOException {
+						assertEquals(parms.isKeyDerivedFromPassword(), true);
+						parms.init(password);
+					}
+				};
+			ByteArrayOutputStream outplain = new ByteArrayOutputStream();
+			xfer(cis, outplain);
+			String new_1984 = outplain.toString("UTF-8");
+			assertEquals(new_1984, content);
+		}
+	}
+
+	private void testEncryptDecryptStringUsingKey(String content) throws Exception {
+		SecureRandom random = new SecureRandom();
+		for (String alg : JacsAlgs.enumAlgs()) {
+			ByteArrayInputStream inplain = new ByteArrayInputStream(content.getBytes("UTF-8"));
+			CipherMacSpec spec = JacsAlgs.getInstance(alg);
+			final byte key[] = new byte[spec.keySize()];
+			random.nextBytes(key);
+
+			spec.init(key);
+			PipeOutputBuffer outenc = new PipeOutputBuffer();
+			CipherOutputStreamIVMACBase64 cos = new CipherOutputStreamIVMACBase64(outenc, spec);
+			xfer(inplain, cos);
+
+			ByteArrayInputStream isenc = outenc.getInputStream();
+			CipherInputStreamIVMACBase64 cis = new CipherInputStreamIVMACBase64(isenc, null, false) {
+					@Override
+					public void getKey(CipherInputStreamIVMACBase64.Parms parms) throws IOException {
+						assertEquals(parms.isKeyDerivedFromPassword(), false);
+						parms.init(key);
+					}
+				};
 			ByteArrayOutputStream outplain = new ByteArrayOutputStream();
 			xfer(cis, outplain);
 			String new_1984 = outplain.toString("UTF-8");

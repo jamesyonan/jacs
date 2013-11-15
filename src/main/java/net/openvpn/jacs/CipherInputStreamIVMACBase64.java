@@ -28,6 +28,7 @@ import java.nio.charset.Charset;
 import java.io.InputStream;
 import java.io.IOException;
 import java.security.InvalidKeyException;
+import javax.crypto.spec.SecretKeySpec;
 
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
@@ -43,37 +44,83 @@ public class CipherInputStreamIVMACBase64 extends PipeInputBuffer {
 		}
 	}
 
-	public static class PasswordRequired extends IOException {
-		public PasswordRequired() {
-			super("Password required");
+	public static class KeyRequired extends IOException {
+		public KeyRequired() {
+			super("Key required");
 		}
 	}
 
-	private static class Base64Helper {
-		public static class Parms {
-			private CipherMacSpec spec;
-			private int strength;
+	public static class IncorrectKeyType extends IOException {
+		public IncorrectKeyType() {
+			super("Incorrect key type");
+		}
+	}
 
-			CipherMacSpec generateSpec(String password) throws IOException {
-				try {
-					spec.init(password, strength);
-				}
-				catch (NoSuchAlgorithmException e) {
-					throw new IOExceptionWrapper(e);
-				}
-				catch (InvalidKeySpecException e) {
-					throw new IOExceptionWrapper(e);
-				}
-				catch (NoSuchPaddingException e) {
-					throw new IOExceptionWrapper(e);
-				}
-				catch (GeneralSecurityException e) {
-					throw new IOExceptionWrapper(e);
-				}
-				return spec;
+	public static class Parms {
+		private CipherMacSpec spec;
+		private int strength;
+
+		void init(String password) throws IOException {
+			try {
+				spec.init(password, strength);
 			}
-		};
+			catch (NoSuchAlgorithmException e) {
+				throw new IOExceptionWrapper(e);
+			}
+			catch (InvalidKeySpecException e) {
+				throw new IOExceptionWrapper(e);
+			}
+			catch (NoSuchPaddingException e) {
+				throw new IOExceptionWrapper(e);
+			}
+			catch (GeneralSecurityException e) {
+				throw new IOExceptionWrapper(e);
+			}
+		}
 
+		void init(byte[] key) throws IOException {
+			try {
+				spec.init(key);
+			}
+			catch (NoSuchAlgorithmException e) {
+				throw new IOExceptionWrapper(e);
+			}
+			catch (InvalidKeySpecException e) {
+				throw new IOExceptionWrapper(e);
+			}
+			catch (NoSuchPaddingException e) {
+				throw new IOExceptionWrapper(e);
+			}
+			catch (GeneralSecurityException e) {
+				throw new IOExceptionWrapper(e);
+			}
+		}
+
+		void init(SecretKeySpec cipherKey, SecretKeySpec macKey) throws IOException {
+			try {
+				spec.init(cipherKey, macKey);
+			}
+			catch (NoSuchAlgorithmException e) {
+				throw new IOExceptionWrapper(e);
+			}
+			catch (InvalidKeySpecException e) {
+				throw new IOExceptionWrapper(e);
+			}
+			catch (NoSuchPaddingException e) {
+				throw new IOExceptionWrapper(e);
+			}
+			catch (GeneralSecurityException e) {
+				throw new IOExceptionWrapper(e);
+			}
+		}
+
+		boolean isKeyDerivedFromPassword() {
+			return strength >= 1;
+		}
+
+	};
+
+	private static class Base64Helper {
 		Charset charset;
 
 		public Base64Helper() {
@@ -158,8 +205,8 @@ public class CipherInputStreamIVMACBase64 extends PipeInputBuffer {
 	 * ciphertext data, and HMAC signature rendered as Base64.
 	 *
 	 * @param is Ciphertext will be read from this stream as Base64.
-	 * @param password Decryption password, or null to prompt from
-	 *        console if needed.
+	 * @param password Decryption password, or null to obtain from
+	 *        getKey() if needed.
 	 * @param passthruIfUnencrypted If true, and input is not recognized
 	 *        as a Jacs base64 ciphertext file, pipe the input through
 	 *        verbatim.
@@ -174,12 +221,12 @@ public class CipherInputStreamIVMACBase64 extends PipeInputBuffer {
 
 	/**
 	 * Derived classes should override this method to provide a
-	 * password when needed.
+	 * key when needed.
 	 *
 	 * @return The password.
 	 */
-	public String getPassword() throws IOException {
-		throw new PasswordRequired();
+	public void getKey(Parms parms) throws IOException {
+		throw new KeyRequired();
 	}
 
 	void getBytesCiphertext(PipeOutputBuffer out) throws IOException {
@@ -196,9 +243,12 @@ public class CipherInputStreamIVMACBase64 extends PipeInputBuffer {
 	protected void getBytes(PipeOutputBuffer out) throws IOException {
 		if (in == null) {
 			byte[] line = lbuf.readLine();
-			Base64Helper.Parms parms = b64.head(line);
+			Parms parms = b64.head(line);
 			if (parms != null) {
-				String pw = (password != null) ? password : getPassword();
+				if (password != null)
+					parms.init(password);
+				else
+					getKey(parms);
 				PipeInputBuffer ct = new PipeInputBuffer() {
 						@Override
 						protected void getBytes(PipeOutputBuffer out) throws IOException {
@@ -206,7 +256,7 @@ public class CipherInputStreamIVMACBase64 extends PipeInputBuffer {
 						}
 					};
 				try {
-					in = new CipherInputStreamIVMAC(ct, parms.generateSpec(pw));
+					in = new CipherInputStreamIVMAC(ct, parms.spec);
 				}
 				catch (InvalidKeyException e) {
 					throw new IOExceptionWrapper(e);

@@ -138,6 +138,38 @@ public class PBKDF2_SHA1_AES256_HMAC_SHA256 extends CipherMacSpec {
 	}
 
 	@Override
+	public void init(byte[] key)
+		throws NoSuchAlgorithmException, InvalidKeySpecException, UnsupportedEncodingException, GeneralSecurityException
+	{
+		final int csize = cipherKeySize() / 8;
+		final int hsize = hmacKeySize() / 8;
+		if (key.length != csize + hsize)
+			throw new InvalidKeySpecException("bad key size");
+		this.cipher = Cipher.getInstance(cipherAlg());
+		this.cipherKey = new SecretKeySpec(key, 0, csize, cipherFamily());
+		this.mac = Mac.getInstance(hmacAlg());
+		this.macKey = new SecretKeySpec(key, csize, hsize, hmacAlg());
+		kdstrength = -1;
+	}
+
+	@Override
+	public void init(SecretKeySpec cipherKey, SecretKeySpec macKey)
+		throws NoSuchAlgorithmException, InvalidKeySpecException, UnsupportedEncodingException, GeneralSecurityException
+	{
+		this.cipher = Cipher.getInstance(cipherAlg());
+		this.cipherKey = cipherKey;
+		this.mac = Mac.getInstance(hmacAlg());
+		this.macKey = macKey;
+		kdstrength = -1;
+	}
+
+	@Override
+	public int keySize()
+	{
+		return (cipherKeySize() + hmacKeySize()) / 8;
+	}
+
+	@Override
 	public int strength() {
 		return kdstrength;
 	}

@@ -47,10 +47,10 @@ import java.io.UnsupportedEncodingException;
  * integrity checking as well as base64-format output.
  */
 public abstract class CipherMacSpec {
-	public Cipher cipher;
-	public SecretKeySpec cipherKey;
-	public Mac mac;
-	public SecretKeySpec macKey;
+	protected Cipher cipher;
+	protected SecretKeySpec cipherKey;
+	protected Mac mac;
+	protected SecretKeySpec macKey;
 
 	/**
 	 * Algorithm name.
@@ -85,6 +85,13 @@ public abstract class CipherMacSpec {
 	abstract public CipherMacSpec create();
 
 	/**
+	 * Get key size.
+	 *
+	 * @return Combined Cipher/HMAC key size in bytes.
+	 */
+	abstract public int keySize();
+
+	/**
 	 * Initialize a CipherMacSpec object with password and
 	 * key derivation complexity.
 	 *
@@ -95,5 +102,30 @@ public abstract class CipherMacSpec {
 	 * @param strength Key derivation complexity.
 	 */
 	abstract public void init(String password, int strength)
+		throws NoSuchAlgorithmException, InvalidKeySpecException, UnsupportedEncodingException, GeneralSecurityException;
+
+	/**
+	 * Initialize a CipherMacSpec object with byte[] key.
+	 * Caller should use keySize() to get the required key size.
+	 *
+	 * Individual algs should override this method
+	 * to initialize cipher, cipherKey, mac, and macKey.
+	 *
+	 * @param key Combined key for cipher and HMAC keys.
+	 */
+	abstract public void init(byte[] key)
+		throws NoSuchAlgorithmException, InvalidKeySpecException, UnsupportedEncodingException, GeneralSecurityException;
+
+	/**
+	 * Initialize a CipherMacSpec object with
+	 * separate keys for cipher and mac.
+	 *
+	 * Individual algs should override this method
+	 * to initialize cipher, cipherKey, mac, and macKey.
+	 *
+	 * @param cipherKey Cipher key.
+	 * @param macKey HMAC key.
+	 */
+	abstract public void init(SecretKeySpec cipherKey, SecretKeySpec macKey)
 		throws NoSuchAlgorithmException, InvalidKeySpecException, UnsupportedEncodingException, GeneralSecurityException;
 }

@@ -79,8 +79,11 @@ public class Jacs {
 				pw = null;
 			InputStream cin = new CipherInputStreamIVMACBase64(fin, pw, args[0].equals("D64A")) {
 					@Override
-					public String getPassword() throws IOException {
-						return getPw(false);
+					public void getKey(CipherInputStreamIVMACBase64.Parms parms) throws IOException {
+						if (!parms.isKeyDerivedFromPassword())
+							throw new CipherInputStreamIVMACBase64.IncorrectKeyType();
+						String pw = getPw(false);
+						parms.init(pw);
 					}
 				};
 

@@ -70,8 +70,16 @@ public class SCRYPT_AES256_HMAC_SHA256 extends CipherMacSpec {
 		return "AES";
 	}
 
+	protected int cipherKeySize() {
+		return 256;
+	}
+
     protected String hmacAlg() {
 		return "HmacSHA256";
+	}
+
+	protected int hmacKeySize() {
+		return 256;
 	}
 
 	protected byte[] salt() {
@@ -106,6 +114,37 @@ public class SCRYPT_AES256_HMAC_SHA256 extends CipherMacSpec {
 		macKey = new SecretKeySpec(Arrays.copyOfRange(combined_key, 32, 64), hmacAlg());
 
 		kdstrength = strength;
+	}
+
+	@Override
+	public void init(byte[] key)
+		throws NoSuchAlgorithmException, InvalidKeySpecException, UnsupportedEncodingException, GeneralSecurityException
+	{
+		final int csize = cipherKeySize() / 8;
+		final int hsize = hmacKeySize() / 8;
+		if (key.length != csize + hsize)
+			throw new InvalidKeySpecException("bad key size");
+		this.cipher = Cipher.getInstance(cipherAlg());
+		this.cipherKey = new SecretKeySpec(key, 0, csize, cipherFamily());
+		this.mac = Mac.getInstance(hmacAlg());
+		this.macKey = new SecretKeySpec(key, csize, hsize, hmacAlg());
+		kdstrength = -1;
+	}
+
+	public void init(SecretKeySpec cipherKey, SecretKeySpec macKey)
+		throws NoSuchAlgorithmException, InvalidKeySpecException, UnsupportedEncodingException, GeneralSecurityException
+	{
+		this.cipher = Cipher.getInstance(cipherAlg());
+		this.cipherKey = cipherKey;
+		this.mac = Mac.getInstance(hmacAlg());
+		this.macKey = macKey;
+		kdstrength = -1;
+	}
+
+	@Override
+	public int keySize()
+	{
+		return (cipherKeySize() + hmacKeySize()) / 8;
 	}
 
 	@Override
