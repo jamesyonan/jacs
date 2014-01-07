@@ -149,7 +149,7 @@ public class Jacs {
 	}
 
 	public static void usage() {
-		System.err.println("jacs 0.5.1: symmetric encryption tool");
+		System.err.println("jacs 0.5.2: symmetric encryption tool");
 		System.err.println("usage:");
 		System.err.println("  encrypt : jacs E <alg> <password> <strength> <infile> <outfile>");
 		System.err.println("  decrypt : jacs D <alg> <password> <strength> <infile> <outfile>");

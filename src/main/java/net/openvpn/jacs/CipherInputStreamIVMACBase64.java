@@ -60,7 +60,7 @@ public class CipherInputStreamIVMACBase64 extends PipeInputBuffer {
 		private CipherMacSpec spec;
 		private int strength;
 
-		void init(String password) throws IOException {
+		public void init(String password) throws IOException {
 			try {
 				spec.init(password, strength);
 			}
@@ -78,7 +78,7 @@ public class CipherInputStreamIVMACBase64 extends PipeInputBuffer {
 			}
 		}
 
-		void init(byte[] key) throws IOException {
+		public void init(byte[] key) throws IOException {
 			try {
 				spec.init(key);
 			}
@@ -96,7 +96,7 @@ public class CipherInputStreamIVMACBase64 extends PipeInputBuffer {
 			}
 		}
 
-		void init(SecretKeySpec cipherKey, SecretKeySpec macKey) throws IOException {
+		public void init(SecretKeySpec cipherKey, SecretKeySpec macKey) throws IOException {
 			try {
 				spec.init(cipherKey, macKey);
 			}
@@ -114,7 +114,7 @@ public class CipherInputStreamIVMACBase64 extends PipeInputBuffer {
 			}
 		}
 
-		boolean isKeyDerivedFromPassword() {
+		public boolean isKeyDerivedFromPassword() {
 			return strength >= 1;
 		}
 

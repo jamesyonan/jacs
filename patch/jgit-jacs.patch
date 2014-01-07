@@ -1,5 +1,5 @@
 diff --git a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Main.java b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Main.java
-index b948bc2..1c36fdc 100644
+index 3648ffd..b276de7 100644
 --- a/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Main.java
 +++ b/org.eclipse.jgit.pgm/src/org/eclipse/jgit/pgm/Main.java
 @@ -52,6 +52,7 @@
@@ -19,7 +19,7 @@ index b948bc2..1c36fdc 100644
  /** Command line entry point. */
  public class Main {
  	@Option(name = "--help", usage = "usage_displayThisHelpText", aliases = { "-h" })
-@@ -113,6 +116,11 @@ public static void main(final String[] argv) {
+@@ -116,6 +119,11 @@ public static void main(final String[] argv) {
  	 */
  	protected void run(final String[] argv) {
  		try {
@@ -32,7 +32,7 @@ index b948bc2..1c36fdc 100644
  				AwtAuthenticator.install();
  				AwtCredentialsProvider.install();
 diff --git a/org.eclipse.jgit/pom.xml b/org.eclipse.jgit/pom.xml
-index 88c3874..d06569b 100644
+index 178744b..5d2c65b 100644
 --- a/org.eclipse.jgit/pom.xml
 +++ b/org.eclipse.jgit/pom.xml
 @@ -78,6 +78,12 @@
@@ -43,37 +43,37 @@ index 88c3874..d06569b 100644
 +	<dependency>
 +	  <groupId>net.openvpn</groupId>
 +	  <artifactId>jacs</artifactId>
-+	  <version>0.5.1</version>
++	  <version>0.5.2</version>
 +	</dependency>
    </dependencies>
  
    <build>
 diff --git a/org.eclipse.jgit/resources/org/eclipse/jgit/internal/JGitText.properties b/org.eclipse.jgit/resources/org/eclipse/jgit/internal/JGitText.properties
-index 706dce7..f969f52 100644
+index bb67c12..4a8d0a4 100644
 --- a/org.eclipse.jgit/resources/org/eclipse/jgit/internal/JGitText.properties
 +++ b/org.eclipse.jgit/resources/org/eclipse/jgit/internal/JGitText.properties
-@@ -265,6 +265,7 @@ invalidModeForPath=Invalid mode {0} for path {1}
+@@ -269,6 +269,7 @@ invalidModeForPath=Invalid mode {0} for path {1}
  invalidObject=Invalid {0} {1}:{2}
  invalidOldIdSent=invalid old id sent
  invalidPacketLineHeader=Invalid packet line header: {0}
 +invalidPassword=Invalid password: {0}
  invalidPath=Invalid path: {0}
- invalidReflogRevision=Invalid reflog revision: {0}
- invalidRefName=Invalid ref name: {0}
+ invalidPathContainsSeparator=Invalid path (contains separator ''{0}''): {1}
+ invalidPathPeriodAtEndWindows=Invalid path (period at end is ignored by Windows): {0}
 diff --git a/org.eclipse.jgit/src/org/eclipse/jgit/internal/JGitText.java b/org.eclipse.jgit/src/org/eclipse/jgit/internal/JGitText.java
-index 8ac971a..7ee2517 100644
+index f9700a1..27d8357 100644
 --- a/org.eclipse.jgit/src/org/eclipse/jgit/internal/JGitText.java
 +++ b/org.eclipse.jgit/src/org/eclipse/jgit/internal/JGitText.java
-@@ -327,6 +327,7 @@ public static JGitText get() {
+@@ -331,6 +331,7 @@ public static JGitText get() {
  	/***/ public String invalidObject;
  	/***/ public String invalidOldIdSent;
  	/***/ public String invalidPacketLineHeader;
 +	/***/ public String invalidPassword;
  	/***/ public String invalidPath;
- 	/***/ public String invalidReflogRevision;
- 	/***/ public String invalidRefName;
+ 	/***/ public String invalidPathContainsSeparator;
+ 	/***/ public String invalidPathPeriodAtEndWindows;
 diff --git a/org.eclipse.jgit/src/org/eclipse/jgit/transport/AmazonS3.java b/org.eclipse.jgit/src/org/eclipse/jgit/transport/AmazonS3.java
-index 99d8b09..f251498 100644
+index 99d8b09..86d79fe 100644
 --- a/org.eclipse.jgit/src/org/eclipse/jgit/transport/AmazonS3.java
 +++ b/org.eclipse.jgit/src/org/eclipse/jgit/transport/AmazonS3.java
 @@ -44,18 +44,21 @@
@@ -166,16 +166,17 @@ index 99d8b09..f251498 100644
  		}
  
  		maxAttempts = Integer.parseInt(props.getProperty(
-@@ -633,10 +667,18 @@ static Properties properties(final File authFile)
+@@ -633,10 +667,19 @@ static Properties properties(final File authFile)
  			throws FileNotFoundException, IOException {
  		final Properties p = new Properties();
  		final FileInputStream in = new FileInputStream(authFile);
 +		CipherInputStreamIVMACBase64 cin = new CipherInputStreamIVMACBase64(in, null, true) {
 +				@Override
-+				public String getPassword() throws IOException {
-+					Console console = System.console();
-+					char[] pw = console.readPassword("Password:");
-+					return new String(pw);
++				public void getKey(CipherInputStreamIVMACBase64.Parms parms) throws IOException {
++				    if (!parms.isKeyDerivedFromPassword())
++					throw new CipherInputStreamIVMACBase64.IncorrectKeyType();
++				    String pw = new String(System.console().readPassword("Password:"));
++				    parms.init(pw);
 +				}
 +			};
  		try {
