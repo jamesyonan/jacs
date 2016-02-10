@@ -1,0 +1,2 @@
+Install in local maven repo:
+  mvn install:install-file -Dfile=target/jacs-VERSION.jar -DpomFile=pom.xml
