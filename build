@@ -1,11 +1,13 @@
 #!/bin/bash
-# build a standalone jacs executable for unix
 set -e
 TESTS=""
 [ "$NOTEST" = "1" ] && TESTS="-DskipTests"
 mvn -e clean install $TESTS
+
+# build a standalone jacs executable for unix
 cat >jacs <<EOF
-#!/usr/bin/java -jar
+#!/bin/sh
+exec java -jar \$0 "\$@"
 EOF
 cat target/jacs-*.jar >>jacs
 chmod +x jacs
