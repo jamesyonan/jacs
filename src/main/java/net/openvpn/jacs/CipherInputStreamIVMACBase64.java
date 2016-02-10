@@ -23,6 +23,11 @@
 
 package net.openvpn.jacs;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+
 import javax.xml.bind.DatatypeConverter; // for base64
 import java.nio.charset.Charset;
 import java.io.InputStream;
@@ -278,5 +283,26 @@ public class CipherInputStreamIVMACBase64 extends PipeInputBuffer {
 	public void close() throws IOException {
 		if (in != null)
 			in.close();
+	}
+
+	public static boolean isJacsEncrypted(File file) {
+		BufferedReader br = null;
+		try {
+			FileInputStream fis = new FileInputStream(file);
+			br = new BufferedReader(new InputStreamReader(fis, Charset.forName("UTF-8")));
+			String line = br.readLine();
+			return line != null && line.startsWith(CipherOutputStreamIVMACBase64.head_tag);
+		}
+		catch (Exception e) {
+			return false;
+		}
+		finally {
+			try {
+				if (br != null)
+					br.close();
+			}
+			catch (Exception e) {
+			}
+		}
 	}
 }
