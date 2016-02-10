@@ -138,13 +138,19 @@ public class Jacs {
 	}
 
 	public static void xfer(InputStream is, OutputStream os) throws IOException {
-		byte[] buf = new byte[4096];
-		while (true) {
-			int len = is.read(buf);
-			if (len < 0)
-				break;
-			if (len > 0)
-				os.write(buf, 0, len);
+		try {
+			byte[] buf = new byte[4096];
+			while (true) {
+				int len = is.read(buf);
+				if (len < 0)
+					break;
+				if (len > 0)
+					os.write(buf, 0, len);
+			}
+		}
+		finally {
+			is.close();
+			os.close();
 		}
 	}
 
